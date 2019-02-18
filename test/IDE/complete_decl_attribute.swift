@@ -50,6 +50,9 @@ func method(){}
 // KEYWORD2-NEXT:             Keyword/None:                       warn_unqualified_access[#Func Attribute#]; name=warn_unqualified_access{{$}}
 // KEYWORD2-NEXT:             Keyword/None:                       usableFromInline[#Func Attribute#]; name=usableFromInline
 // KEYWORD2-NEXT:             Keyword/None:                       discardableResult[#Func Attribute#]; name=discardableResult
+// KEYWORD2-NEXT:             Keyword/None:                       pure[#Func Attribute#]; name=pure{{$}}
+// KEYWORD2-NEXT:             Keyword/None:                       impure[#Func Attribute#]; name=impure{{$}}
+// KEYWORD2-NEXT:             Keyword/None:                       impureBody[#Func Attribute#]; name=impureBody{{$}}
 // KEYWORD2-NEXT:             End completions
 
 @#^KEYWORD3^#
@@ -80,6 +83,7 @@ enum E {}
 // KEYWORD4-NEXT:             Keyword/None:                       dynamicCallable[#Enum Attribute#]; name=dynamicCallable
 // KEYWORD4-NEXT:             Keyword/None:                       dynamicMemberLookup[#Enum Attribute#]; name=dynamicMemberLookup
 // KEYWORD4-NEXT:             Keyword/None:                       usableFromInline[#Enum Attribute#]; name=usableFromInline
+// KEYWORD4-NEXT:             Keyword/None:                       pure[#Enum Attribute#]; name=pure
 // KEYWORD4-NEXT:             End completions
 
 
@@ -90,6 +94,7 @@ struct S{}
 // KEYWORD5-NEXT:             Keyword/None:                       dynamicCallable[#Struct Attribute#]; name=dynamicCallable
 // KEYWORD5-NEXT:             Keyword/None:                       dynamicMemberLookup[#Struct Attribute#]; name=dynamicMemberLookup
 // KEYWORD5-NEXT:             Keyword/None:                       usableFromInline[#Struct Attribute#]; name=usableFromInline
+// KEYWORD5-NEXT:             Keyword/None:                       pure[#Struct Attribute#]; name=pure
 // KEYWORD5-NEXT:             End completions
 
 
@@ -117,4 +122,7 @@ struct S{}
 // KEYWORD_LAST-NEXT:             Keyword/None:                       usableFromInline[#Declaration Attribute#]; name=usableFromInline{{$}}
 // KEYWORD_LAST-NEXT:             Keyword/None:                       discardableResult[#Declaration Attribute#]; name=discardableResult
 // KEYWORD_LAST-NEXT:             Keyword/None:                       GKInspectable[#Declaration Attribute#]; name=GKInspectable{{$}}
+// KEYWORD_LAST-NEXT:             Keyword/None:                       pure[#Declaration Attribute#]; name=pure{{$}}
+// KEYWORD_LAST-NEXT:             Keyword/None:                       impure[#Declaration Attribute#]; name=impure{{$}}
+// KEYWORD_LAST-NEXT:             Keyword/None:                       impureBody[#Declaration Attribute#]; name=impureBody{{$}}
 // KEYWORD_LAST-NEXT:             End completions

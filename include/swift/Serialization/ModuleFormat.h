@@ -753,7 +753,8 @@ namespace decls_block {
     TypeIDField, // output
     FunctionTypeRepresentationField, // representation
     BCFixed<1>,  // noescape?
-    BCFixed<1>   // throws?
+    BCFixed<1>,  // throws?
+    BCFixed<1>   // pure?
 
     // trailed by parameters
   >;
@@ -821,6 +822,7 @@ namespace decls_block {
     TypeIDField,         // output
     FunctionTypeRepresentationField, // representation
     BCFixed<1>,          // throws?
+    BCFixed<1>,          // pure?
     GenericSignatureIDField // generic signture
 
     // trailed by parameters
@@ -972,6 +974,7 @@ namespace decls_block {
     DeclContextIDField,     // context decl
     BCFixed<1>,             // implicit flag
     BCFixed<1>,             // class-bounded?
+    BCFixed<1>,             // value-bounded?
     BCFixed<1>,             // objc?
     BCFixed<1>,             // existential-type-supported?
     GenericEnvironmentIDField, // generic environment

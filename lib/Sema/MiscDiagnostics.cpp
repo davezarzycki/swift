@@ -74,14 +74,22 @@ static void diagSyntacticUseRestrictions(TypeChecker &TC, const Expr *E,
     /// Keep track of the arguments to CallExprs.
     SmallPtrSet<Expr *, 2> CallArgs;
 
+    /// Keep track of whether we're in expressions that might access shared
+    /// mutable state.
+    unsigned PotentialPurityError = 0;
+    bool PurityError = false;
+
     bool IsExprStmt;
+    unsigned IsPureContext;
 
   public:
     TypeChecker &TC;
     const DeclContext *DC;
 
     DiagnoseWalker(TypeChecker &TC, const DeclContext *DC, bool isExprStmt)
-      : IsExprStmt(isExprStmt), TC(TC), DC(DC) {}
+      : IsExprStmt(isExprStmt),
+        IsPureContext(DC->isPureContext()),
+        TC(TC), DC(DC) {}
 
     // Selector for the partial_application_of_function_invalid diagnostic
     // message.
@@ -111,11 +119,26 @@ static void diagSyntacticUseRestrictions(TypeChecker &TC, const Expr *E,
     bool walkToTypeReprPre(TypeRepr *T) override { return true; }
 
     std::pair<bool, Expr *> walkToExprPre(Expr *E) override {
+      if (auto CE = dyn_cast<ClosureExpr>(E)) {
+        if (!CE->hasSingleExpressionBody())
+          return { false, E };
+        IsPureContext += CE->isPureContext();
+      }
+      if (isa<LoadExpr>(E) || isa<InOutExpr>(E))
+        ++PotentialPurityError;
+      if (auto ParentExpr = Parent.getAsExpr())
+        if (auto AE = dyn_cast<AssignExpr>(ParentExpr))
+          if (AE->getDest() == E)
+            ++PotentialPurityError;
+
       // See through implicit conversions of the expression.  We want to be able
       // to associate the parent of this expression with the ultimate callee.
       auto Base = E;
       while (auto Conv = dyn_cast<ImplicitConversionExpr>(Base))
         Base = Conv->getSubExpr();
+
+      // Verify that pure functions don't reenter the impure world.
+      checkPurity(Base);
 
       if (auto *DRE = dyn_cast<DeclRefExpr>(Base)) {
         // Verify metatype uses.
@@ -377,6 +400,26 @@ static void diagSyntacticUseRestrictions(TypeChecker &TC, const Expr *E,
       return arg;
     }
 
+    Expr *walkToExprPost(Expr *E) override {
+      if (auto CE = dyn_cast<ClosureExpr>(E))
+        if (CE->hasSingleExpressionBody())
+          IsPureContext -= CE->isPureContext();
+      unsigned checkPotentialPurityError = 0;
+      if (isa<LoadExpr>(E) || isa<InOutExpr>(E))
+        checkPotentialPurityError = PotentialPurityError--;
+      if (auto ParentExpr = Parent.getAsExpr())
+        if (auto AE = dyn_cast<AssignExpr>(ParentExpr))
+          if (AE->getDest() == E)
+            checkPotentialPurityError = PotentialPurityError--;
+      if (checkPotentialPurityError && PurityError) {
+        PurityError = false;
+        TC.diagnose(E->getStartLoc(),
+            diag::pure_func_cannot_access_mutable_global, isa<LoadExpr>(E))
+          .highlight(E->getSourceRange());
+      }
+      return E;
+    }
+
     void checkConvertedPointerArgument(ConcreteDeclRef callee,
                                        unsigned uncurryLevel,
                                        unsigned argIndex,
@@ -632,6 +675,76 @@ static void diagSyntacticUseRestrictions(TypeChecker &TC, const Expr *E,
             .fixItInsert(paramDecl->getTypeLoc().getSourceRange().Start,
                          "@escaping ");
       }
+    }
+
+    // Verify that pure functions do not use impure logic.
+    void checkPurity(Expr *expr) {
+      if (!IsPureContext)
+        return;
+      if (expr->isImplicit())
+        return;
+
+      if (PotentialPurityError) {
+        if (expr->getType()->is<AnyMetatypeType>()) {
+          bool isSelf = false;
+          if (auto DRE = dyn_cast<DeclRefExpr>(expr)) {
+            if (auto VD = dyn_cast<VarDecl>(DRE->getDecl()))
+              isSelf = VD->isSelfParameter();
+          }
+          if (!isSelf) {
+            PurityError = true;
+            return;
+          }
+        }
+      }
+
+      Expr *refExpr = nullptr;
+      SourceRange SR;
+      if (auto AE = dyn_cast<ApplyExpr>(expr)) {
+        refExpr = AE->getSemanticFn();
+        auto AFT = refExpr->getType()->castTo<AnyFunctionType>();
+        if (AFT->isPure())
+          return;
+        if (isa<SelfApplyExpr>(refExpr))
+          return; // let SelfApplyExpr diagnose this later
+        SR = SourceRange(AE->getFn()->getStartLoc(), AE->getFn()->getEndLoc());
+      } else if (auto MRE = dyn_cast<MemberRefExpr>(expr)) {
+        refExpr = MRE->getBase();
+        SR = MRE->getNameLoc().getSourceRange();
+      } else if (auto SE = dyn_cast<SubscriptExpr>(expr)) {
+        refExpr = SE->getBase();
+        SR = SE->getIndex()->getStartLoc();
+      } else if (auto DMRE = dyn_cast<DynamicMemberRefExpr>(expr)) {
+        refExpr = DMRE->getBase();
+        SR = DMRE->getNameLoc().getSourceRange();
+      } else if (auto DSE = dyn_cast<DynamicSubscriptExpr>(expr)) {
+        refExpr = DSE->getBase();
+        SR = DSE->getIndex()->getStartLoc();
+      } else if (auto TE = dyn_cast<TypeExpr>(expr)) {
+        if (!PotentialPurityError)
+          return;
+        PurityError = true;
+        return;
+      } else if (auto DRE = dyn_cast<DeclRefExpr>(expr)) {
+        if (!PotentialPurityError)
+          return;
+        if (DRE->getDecl()->getDeclContext()->getLocalContext())
+          return;
+        if (DRE->getDecl()->isInstanceMember()) {
+          return;
+        }
+        PurityError = true;
+        return;
+      } else {
+        // All other exprs should be harmless
+        return;
+      }
+
+      if (!refExpr->getType()->hasReferenceSemantics())
+        return;
+
+      TC.diagnose(SR.Start, diag::pure_func_cannot_access_impure)
+        .highlight(SR);
     }
 
     // Diagnose metatype values that don't appear as part of a property,

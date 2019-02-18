@@ -3515,6 +3515,7 @@ namespace {
 
       printFlag(!T->isNoEscape(), "escaping");
       printFlag(T->throws(), "throws");
+      printFlag(T->isPure(), "pure");
 
       OS << "\n";
       Indent += 2;

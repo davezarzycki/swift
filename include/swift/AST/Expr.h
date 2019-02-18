@@ -273,8 +273,9 @@ protected:
     NumArgLabels : 16
   );
 
-  SWIFT_INLINE_BITFIELD(AbstractClosureExpr, Expr, (16-NumExprBits)+16,
-    : 16 - NumExprBits, // Align and leave room for subclasses
+  SWIFT_INLINE_BITFIELD(AbstractClosureExpr, Expr, (15-NumExprBits)+1+16,
+    : 15 - NumExprBits, // Align and leave room for subclasses
+    ReturnedImpureBeforeType : 1,
     Discriminator : 16
   );
 
@@ -3585,6 +3586,18 @@ public:
 
   /// Whether this closure consists of a single expression.
   bool hasSingleExpressionBody() const;
+
+  /// Set that the closure identified as "impure" before the type was computed.
+  void setReturnedImpureBeforeType() {
+    Bits.AbstractClosureExpr.ReturnedImpureBeforeType = true;
+  }
+  /// Whether the closure identified as "impure" before the type was computed.
+  bool getReturnedImpureBeforeType() const {
+    return Bits.AbstractClosureExpr.ReturnedImpureBeforeType;
+  }
+
+  /// Whether the closure is "pure" or not.
+  bool isPure() const;
 
   static bool classof(const Expr *E) {
     return E->getKind() >= ExprKind::First_AbstractClosureExpr &&

@@ -252,6 +252,15 @@ public:
     return const_cast<DeclContext*>(this)->getAsDecl();
   }
 
+  LLVM_READONLY
+  Expr *getAsExpr() {
+    return ParentAndKind.getInt() == ASTHierarchy::Expr ?
+      reinterpret_cast<Expr*>(this + 1) : nullptr;
+  }
+  const Expr *getAsExpr() const {
+    return const_cast<DeclContext*>(this)->getAsExpr();
+  }
+
   DeclContext(DeclContextKind Kind, DeclContext *Parent)
       : ParentAndKind(Parent, getASTHierarchyFromKind(Kind)) {
     if (Kind != DeclContextKind::Module)
@@ -281,6 +290,11 @@ public:
   /// enum, a protocol, or an extension.
   LLVM_READONLY
   bool isTypeContext() const;
+
+  /// \returns true if this is a "pure" context, e.g., a struct, an enum,
+  /// a function, or a protocol.
+  LLVM_READONLY
+  bool isPureContext() const;
 
   /// If this DeclContext is a NominalType declaration or an
   /// extension thereof, return the NominalTypeDecl.

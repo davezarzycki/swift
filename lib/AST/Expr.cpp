@@ -2321,6 +2321,14 @@ VarDecl * TapExpr::getVar() const {
   return dyn_cast<VarDecl>(Body->getElement(0).dyn_cast<Decl *>());
 }
 
+bool AbstractClosureExpr::isPure() const {
+  if (auto Ty = getType())
+    if (!Ty->is<ErrorType>())
+      return Ty->getAs<AnyFunctionType>()->isPure();
+  const_cast<AbstractClosureExpr*>(this)->setReturnedImpureBeforeType();
+  return false;
+}
+
 // See swift/Basic/Statistic.h for declaration: this enables tracing Exprs, is
 // defined here to avoid too much layering violation / circular linkage
 // dependency.

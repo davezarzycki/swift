@@ -396,6 +396,16 @@ SIMPLE_DECL_ATTR(_implementationOnly, ImplementationOnly,
 DECL_ATTR(_custom, Custom,
   OnAnyDecl | UserInaccessible,
   85)
+SIMPLE_DECL_ATTR(pure, Pure,
+  OnStruct | OnEnum | OnProtocol | OnExtension |
+  OnAbstractFunction | OnSubscript | OnVar,
+  86)
+SIMPLE_DECL_ATTR(impure, Impure,
+  OnFunc | OnConstructor | OnSubscript | OnVar,
+  87)
+SIMPLE_DECL_ATTR(impureBody, ImpureBody,
+  OnFunc | OnConstructor | OnSubscript | OnVar,
+  88)
 
 #undef TYPE_ATTR
 #undef DECL_ATTR_ALIAS

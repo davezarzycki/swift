@@ -2670,6 +2670,8 @@ TypeConverter::getLoweredFormalTypes(SILDeclRef constant,
   // Build the uncurried function type.
   if (innerExtInfo.throws())
     extInfo = extInfo.withThrows(true);
+  if (innerExtInfo.isPure())
+    extInfo = extInfo.withPure();
 
   bridgedParams.push_back(selfParam);
 

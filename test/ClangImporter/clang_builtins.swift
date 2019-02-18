@@ -15,10 +15,10 @@ func test() {
   // CHECK: [[@LINE-1]]:16: error: cannot convert value of type '({{.+}}) -> Int'{{( [(]aka .+[)])?}} to specified type 'Int'
 
   let _: Int = strcspn
-  // CHECK: [[@LINE-1]]:16: error: cannot convert value of type '({{.+}}) -> Int'{{( [(]aka .+[)])?}} to specified type 'Int'
+  // CHECK: [[@LINE-1]]:16: error: cannot convert value of type '({{.+}}) @pure -> Int'{{( [(]aka .+[)])?}} to specified type 'Int'
 
   let _: Int = strspn
-  // CHECK: [[@LINE-1]]:16: error: cannot convert value of type '({{.+}}) -> Int'{{( [(]aka .+[)])?}} to specified type 'Int'
+  // CHECK: [[@LINE-1]]:16: error: cannot convert value of type '({{.+}}) @pure -> Int'{{( [(]aka .+[)])?}} to specified type 'Int'
 
   let _: Int = strlen
   // CHECK: [[@LINE-1]]:16: error: cannot convert value of type '({{.+}}) -> Int'{{( [(]aka .+[)])?}} to specified type 'Int'

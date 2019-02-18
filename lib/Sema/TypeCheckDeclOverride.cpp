@@ -1244,6 +1244,9 @@ namespace  {
 #define UNINTERESTING_ATTR(CLASS)                                              \
     void visit##CLASS##Attr(CLASS##Attr *) {}
 
+    UNINTERESTING_ATTR(Pure)
+    UNINTERESTING_ATTR(Impure)
+    UNINTERESTING_ATTR(ImpureBody)
     UNINTERESTING_ATTR(AccessControl)
     UNINTERESTING_ATTR(Alignment)
     UNINTERESTING_ATTR(AlwaysEmitIntoClient)

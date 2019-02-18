@@ -2095,6 +2095,44 @@ bool FailureDiagnosis::diagnoseNonEscapingParameterToEscaping(
   return true;
 }
 
+/// Try to diagnose common errors involving impure function types being passed,
+/// assigned, or returned as pure function types.
+/// Returns true if it detects and issues an error, false if it does nothing.
+static bool tryDiagnoseImpureToPure(
+    Expr *expr, Type srcType, Type dstType, ContextualTypePurpose dstPurpose,
+    ConstraintSystem &CS) {
+  assert(expr);
+
+  // Must be from non-escaping function to escaping function. For the
+  // destination type, we read through optionality to give better diagnostics in
+  // the event of an implicit promotion.
+  auto srcFT = srcType->getAs<AnyFunctionType>();
+  auto dstFT = dstType->lookThroughAllOptionalTypes()->getAs<AnyFunctionType>();
+
+  if (!srcFT || !dstFT)
+    return false;
+  if (srcFT->isPure() || !dstFT->isPure())
+    return false;
+
+  // Pick a specific diagnostic for the specific use
+  switch (dstPurpose) {
+  case CTP_CallArgument:
+    CS.TC.diagnose(expr->getStartLoc(), diag::passing_impure_to_pure_closure)
+      .highlight(expr->getSourceRange());
+    break;
+  case CTP_AssignSource:
+    CS.TC.diagnose(expr->getStartLoc(), diag::assigning_impure_to_pure_closure)
+      .highlight(expr->getSourceRange());
+    break;
+
+  default:
+    CS.TC.diagnose(expr->getStartLoc(), diag::general_impure_to_pure_closure)
+      .highlight(expr->getSourceRange());
+    break;
+  }
+  return true;
+}
+
 bool FailureDiagnosis::diagnoseContextualConversionError(
     Expr *expr, Type contextualType, ContextualTypePurpose CTP,
     Type suggestedType) {
@@ -2392,6 +2430,10 @@ bool FailureDiagnosis::diagnoseContextualConversionError(
   // Try for better/more specific diagnostics for non-escaping to @escaping
   if (diagnoseNonEscapingParameterToEscaping(expr, exprType, contextualType,
                                              CTP))
+    return true;
+
+  // Try for better/more specific diagnostics for impure to pure
+  if (tryDiagnoseImpureToPure(expr, exprType, contextualType, CTP, CS))
     return true;
 
   // Don't attempt fixits if we have an unsolved type variable, since
@@ -4537,6 +4579,7 @@ bool FailureDiagnosis::diagnoseTrailingClosureErrors(ApplyExpr *callExpr) {
                                         TVO_PrefersSubtypeBinding);
 
         auto extInfo = FunctionType::ExtInfo().withThrows();
+        extInfo = extInfo.withPure(false);
 
         FunctionType::Param tvParam(tv);
         auto fTy = FunctionType::get({tvParam}, expectedResultType, extInfo);

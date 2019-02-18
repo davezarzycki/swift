@@ -39,6 +39,12 @@ TYPE_NODES = [
          children=[
              Child('ClassKeyword', kind='ClassToken'),
          ]),
+    # class-restriction-type -> '!class'
+    Node('NotClassRestrictionType', kind='Type',
+         children=[
+             Child('Operator', kind='PrefixOperatorToken'),
+             Child('ClassKeyword', kind='ClassToken'),
+         ]),
     # array-type -> '[' type ']'
     Node('ArrayType', kind='Type',
          children=[

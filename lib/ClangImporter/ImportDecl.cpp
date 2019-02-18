@@ -3506,6 +3506,12 @@ namespace {
                                               /*throws*/ false,
                                               dc, decl);
 
+      // Map __attribute__((const)) and __attribute__((pure)).
+      if (decl->hasAttr<clang::ConstAttr>() ||
+          decl->hasAttr<clang::PureAttr>()) {
+        result->getAttrs().add(new (Impl.SwiftContext)
+                               PureAttr(/*implicit*/true));
+      }
       result->computeType();
       result->setValidationToChecked();
       result->setIsObjC(false);
@@ -4391,7 +4397,7 @@ namespace {
       auto result = Impl.createDeclWithClangNode<ProtocolDecl>(
           decl, AccessLevel::Public, dc,
           Impl.importSourceLoc(decl->getBeginLoc()),
-          Impl.importSourceLoc(decl->getLocation()), name, None,
+          Impl.importSourceLoc(decl->getLocation()), name, SourceLoc(), None,
           /*TrailingWhere=*/nullptr);
       result->computeType();
 

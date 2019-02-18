@@ -1508,6 +1508,8 @@ ERROR(expected_generics_parameter_name,PointsToFirstBadToken,
       "expected an identifier to name generic parameter", ())
 ERROR(unexpected_class_constraint,none,
        "'class' constraint can only appear on protocol declarations", ())
+ERROR(unexpected_not_class_constraint,none,
+       "'!class' constraint can only appear on protocol declarations", ())
 NOTE(suggest_anyobject,none,
      "did you mean to write an 'AnyObject' constraint?", ())
 ERROR(expected_generics_type_restriction,none,
@@ -1522,6 +1524,10 @@ ERROR(redundant_class_requirement,none,
       "redundant 'class' requirement", ())
 ERROR(late_class_requirement,none,
       "'class' must come first in the requirement list", ())
+ERROR(redundant_not_class_requirement,none,
+      "redundant '!class' requirement", ())
+ERROR(late_not_class_requirement,none,
+      "'!class' must come first in the requirement list", ())
 ERROR(where_without_generic_params,none,
       "'where' clause cannot be attached to "
       "%select{a non-generic|a protocol|an associated type}0 "

@@ -1877,6 +1877,7 @@ TypeConverter::getFunctionInterfaceTypeWithCaptures(CanAnyFunctionType funcType,
 
   auto innerExtInfo = AnyFunctionType::ExtInfo(FunctionType::Representation::Thin,
                                                funcType->throws());
+  innerExtInfo = innerExtInfo.withPure(funcType->isPure());
 
   return CanAnyFunctionType::get(genericSig, funcType.getParams(),
                                  funcType.getResult(), innerExtInfo);

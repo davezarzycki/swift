@@ -3233,6 +3233,8 @@ void Serializer::writeDecl(const Decl *D) {
                                proto->isImplicit(),
                                const_cast<ProtocolDecl *>(proto)
                                  ->requiresClass(),
+                               const_cast<ProtocolDecl *>(proto)
+                                 ->requiresNonClass(),
                                proto->isObjC(),
                                proto->existentialTypeSupported(
                                  /*resolver=*/nullptr),
@@ -3954,7 +3956,8 @@ void Serializer::writeType(Type ty) {
              addTypeRef(fnTy->getResult()),
              getRawStableFunctionTypeRepresentation(fnTy->getRepresentation()),
              fnTy->isNoEscape(),
-             fnTy->throws());
+             fnTy->throws(),
+             fnTy->isPure());
     } else {
       assert(!fnTy->isNoEscape());
 
@@ -3964,6 +3967,7 @@ void Serializer::writeType(Type ty) {
               addTypeRef(fnTy->getResult()),
               getRawStableFunctionTypeRepresentation(fnTy->getRepresentation()),
               fnTy->throws(),
+              fnTy->isPure(),
               addGenericSignatureRef(genericSig));
     }
 

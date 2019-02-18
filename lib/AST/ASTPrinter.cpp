@@ -3837,6 +3837,9 @@ public:
     if (T->throws())
       Printer << " " << tok::kw_throws;
 
+    if (T->isPure())
+      Printer << " @pure";
+
     Printer << " -> ";
 
     Printer.callPrintStructurePre(PrintStructureKind::FunctionReturnType);
@@ -3865,6 +3868,9 @@ public:
 
     if (T->throws())
       Printer << " " << tok::kw_throws;
+
+    if (T->isPure())
+      Printer << " @pure";
 
     Printer << " -> ";
     Printer.callPrintStructurePre(PrintStructureKind::FunctionReturnType);

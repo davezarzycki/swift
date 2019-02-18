@@ -3296,7 +3296,8 @@ ParserResult<ImportDecl> Parser::parseDeclImport(ParseDeclOptions Flags,
 /// \endverbatim
 ParserStatus Parser::parseInheritance(SmallVectorImpl<TypeLoc> &Inherited,
                                       bool allowClassRequirement,
-                                      bool allowAnyObject) {
+                                      bool allowAnyObject,
+                                      SourceLoc *notClassLoc) {
   SyntaxParsingContext InheritanceContext(SyntaxContext,
                                           SyntaxKind::TypeInheritanceClause);
 
@@ -3306,6 +3307,7 @@ ParserStatus Parser::parseInheritance(SmallVectorImpl<TypeLoc> &Inherited,
   SyntaxParsingContext TypeListContext(SyntaxContext,
                                        SyntaxKind::InheritedTypeList);
   SourceLoc classRequirementLoc;
+  SourceLoc notClassRequirementLoc;
 
   ParserStatus Status;
   SourceLoc prevComma;
@@ -3316,6 +3318,44 @@ ParserStatus Parser::parseInheritance(SmallVectorImpl<TypeLoc> &Inherited,
       // Check for a ',', which indicates that there are more protocols coming.
       HasNextType = consumeIf(tok::comma, prevComma);
     };
+
+    // Parse the '!class' keyword for a value-type requirement.
+    if (Tok.is(tok::oper_prefix) && Tok.getText() == "!" &&
+        peekToken().is(tok::kw_class)) {
+      SyntaxParsingContext NotClassTypeContext(SyntaxContext,
+                                           SyntaxKind::NotClassRestrictionType);
+      auto currentNotClassLoc = consumeToken();
+      auto classLoc = consumeToken();
+
+      if (!notClassLoc) {
+        diagnose(consumeToken(), diag::unexpected_not_class_constraint);
+        continue;
+      }
+
+      // If we already saw a !class requirement, complain.
+      if (notClassRequirementLoc.isValid()) {
+        diagnose(currentNotClassLoc, diag::redundant_not_class_requirement)
+          .highlight(notClassRequirementLoc)
+          .fixItRemove(SourceRange(prevComma, classLoc));
+        continue;
+      }
+
+      // If the !class requirement was not the first requirement, complain.
+      if (!Inherited.empty()) {
+        SourceLoc properLoc = Inherited[0].getSourceRange().Start;
+        diagnose(currentNotClassLoc, diag::late_not_class_requirement)
+          .fixItInsert(properLoc, "!class, ")
+          .fixItRemove(SourceRange(prevComma, classLoc));
+        continue;
+      }
+
+      // Record the location of the '!class' keyword.
+      notClassRequirementLoc = currentNotClassLoc;
+
+      *notClassLoc = currentNotClassLoc;
+      continue;
+    }
+
     // Parse the 'class' keyword for a class requirement.
     if (Tok.is(tok::kw_class)) {
       SyntaxParsingContext ClassTypeContext(SyntaxContext,
@@ -3636,7 +3676,8 @@ Parser::parseDeclExtension(ParseDeclOptions Flags, DeclAttributes &Attributes) {
   if (Tok.is(tok::colon))
     status |= parseInheritance(Inherited,
                                /*allowClassRequirement=*/false,
-                               /*allowAnyObject=*/false);
+                               /*allowAnyObject=*/false,
+                               /*notClassLoc*/nullptr);
 
   // Parse the optional where-clause.
   TrailingWhereClause *trailingWhereClause = nullptr;
@@ -4089,7 +4130,8 @@ ParserResult<TypeDecl> Parser::parseDeclAssociatedType(Parser::ParseDeclOptions 
   if (Tok.is(tok::colon))
     Status |= parseInheritance(Inherited,
                                /*allowClassRequirement=*/false,
-                               /*allowAnyObject=*/true);
+                               /*allowAnyObject=*/true,
+                               /*notClassLoc*/nullptr);
   
   ParserResult<TypeRepr> UnderlyingTy;
   if (Tok.is(tok::equal)) {
@@ -5783,7 +5825,8 @@ ParserResult<EnumDecl> Parser::parseDeclEnum(ParseDeclOptions Flags,
     SmallVector<TypeLoc, 2> Inherited;
     Status |= parseInheritance(Inherited,
                                /*allowClassRequirement=*/false,
-                               /*allowAnyObject=*/false);
+                               /*allowAnyObject=*/false,
+                               /*notClassLoc*/nullptr);
     ED->setInherited(Context.AllocateCopy(Inherited));
   }
 
@@ -6064,7 +6107,8 @@ ParserResult<StructDecl> Parser::parseDeclStruct(ParseDeclOptions Flags,
     SmallVector<TypeLoc, 2> Inherited;
     Status |= parseInheritance(Inherited,
                                /*allowClassRequirement=*/false,
-                               /*allowAnyObject=*/false);
+                               /*allowAnyObject=*/false,
+                               /*notClassLoc*/nullptr);
     SD->setInherited(Context.AllocateCopy(Inherited));
   }
 
@@ -6158,7 +6202,8 @@ ParserResult<ClassDecl> Parser::parseDeclClass(ParseDeclOptions Flags,
     SmallVector<TypeLoc, 2> Inherited;
     Status |= parseInheritance(Inherited,
                                /*allowClassRequirement=*/false,
-                               /*allowAnyObject=*/false);
+                               /*allowAnyObject=*/false,
+                               /*notClassLoc*/nullptr);
     CD->setInherited(Context.AllocateCopy(Inherited));
   
   // Parse python style inheritance clause and replace parentheses with a colon
@@ -6269,11 +6314,13 @@ parseDeclProtocol(ParseDeclOptions Flags, DeclAttributes &Attributes) {
   // Parse optional inheritance clause.
   SmallVector<TypeLoc, 4> InheritedProtocols;
   SourceLoc colonLoc;
+  SourceLoc notClassLoc;
   if (Tok.is(tok::colon)) {
     colonLoc = Tok.getLoc();
     Status |= parseInheritance(InheritedProtocols,
                                /*allowClassRequirement=*/true,
-                               /*allowAnyObject=*/true);
+                               /*allowAnyObject=*/true,
+                               &notClassLoc);
   }
 
   TrailingWhereClause *TrailingWhere = nullptr;
@@ -6287,6 +6334,7 @@ parseDeclProtocol(ParseDeclOptions Flags, DeclAttributes &Attributes) {
 
   ProtocolDecl *Proto = new (Context)
       ProtocolDecl(CurDeclContext, ProtocolLoc, NameLoc, ProtocolName,
+                   notClassLoc,
                    Context.AllocateCopy(InheritedProtocols), TrailingWhere);
   // No need to setLocalDiscriminator: protocols can't appear in local contexts.
 

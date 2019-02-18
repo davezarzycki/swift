@@ -3107,14 +3107,15 @@ public:
                                        StringRef blobData) {
     IdentifierID nameID;
     DeclContextID contextID;
-    bool isImplicit, isClassBounded, isObjC, existentialTypeSupported;
+    bool isImplicit, isClassBounded, isValueBounded, isObjC, existentialTypeSupported;
     GenericEnvironmentID genericEnvID;
     TypeID superclassID;
     uint8_t rawAccessLevel;
     ArrayRef<uint64_t> rawInheritedIDs;
 
     decls_block::ProtocolLayout::readRecord(scratch, nameID, contextID,
-                                            isImplicit, isClassBounded, isObjC,
+                                            isImplicit, isClassBounded,
+                                            isValueBounded, isObjC,
                                             existentialTypeSupported,
                                             genericEnvID, superclassID,
                                             rawAccessLevel, rawInheritedIDs);
@@ -3124,12 +3125,14 @@ public:
       return declOrOffset;
 
     auto proto = MF.createDecl<ProtocolDecl>(DC, SourceLoc(), SourceLoc(),
-                                             MF.getIdentifier(nameID), None,
+                                             MF.getIdentifier(nameID),
+                                             SourceLoc(), None,
                                              /*TrailingWhere=*/nullptr);
     declOrOffset = proto;
 
     proto->setSuperclass(MF.getType(superclassID));
     proto->setRequiresClass(isClassBounded);
+    proto->setRequiresNonClass(isValueBounded);
     proto->setExistentialTypeSupported(existentialTypeSupported);
 
     if (auto accessLevel = getActualAccessLevel(rawAccessLevel)) {
@@ -4504,20 +4507,20 @@ public:
                                             bool isGeneric) {
     TypeID resultID;
     uint8_t rawRepresentation;
-    bool noescape = false, throws;
+    bool noescape = false, throws, pure;
     GenericSignature *genericSig = nullptr;
 
     if (!isGeneric) {
       decls_block::FunctionTypeLayout::readRecord(scratch, resultID,
                                                   rawRepresentation,
-                                                  noescape,
-                                                  throws);
+                                                  noescape, throws, pure);
     } else {
       GenericSignatureID rawGenericSig;
       decls_block::GenericFunctionTypeLayout::readRecord(scratch,
                                                          resultID,
                                                          rawRepresentation,
                                                          throws,
+                                                         pure,
                                                          rawGenericSig);
       genericSig = MF.getGenericSignature(rawGenericSig);
     }
@@ -4528,7 +4531,7 @@ public:
       return nullptr;
     }
 
-    auto info = FunctionType::ExtInfo(*representation, noescape, throws);
+    auto info = FunctionType::ExtInfo(*representation, pure, noescape, throws);
 
     auto resultTy = MF.getTypeChecked(resultID);
     if (!resultTy)

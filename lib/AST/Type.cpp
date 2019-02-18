@@ -304,6 +304,15 @@ bool ExistentialLayout::requiresClass() const {
   return false;
 }
 
+bool ExistentialLayout::requiresNonClass() const {
+  for (auto proto : getProtocols()) {
+    if (proto->requiresNonClass())
+      return true;
+  }
+
+  return false;
+}
+
 Type ExistentialLayout::getSuperclass() const {
   if (explicitSuperclass)
     return explicitSuperclass;
@@ -434,9 +443,11 @@ Type TypeBase::addCurriedSelfType(const DeclContext *dc) {
 
   auto selfTy = dc->getSelfInterfaceType();
   auto selfParam = AnyFunctionType::Param(selfTy);
+  auto EI = AnyFunctionType::ExtInfo();
+  EI = EI.withPure(dc->isPureContext());
   if (sig)
-    return GenericFunctionType::get(sig, {selfParam}, type);
-  return FunctionType::get({selfParam}, type);
+    return GenericFunctionType::get(sig, {selfParam}, type, EI);
+  return FunctionType::get({selfParam}, type, EI);
 }
 
 void
@@ -2170,11 +2181,15 @@ static bool matchesFunctionType(CanAnyFunctionType fn1, CanAnyFunctionType fn2,
 
   // When checking overrides, allow the base type to be throwing even if the
   // overriding type isn't.
+  // Also, allow the base type to be impure even if the overriding type isn't.
   auto ext1 = fn1->getExtInfo();
   auto ext2 = fn2->getExtInfo();
   if (matchMode.contains(TypeMatchFlags::AllowOverride)) {
     if (ext2.throws()) {
       ext1 = ext1.withThrows(true);
+    }
+    if (!ext2.isPure()) {
+      ext1 = ext1.withPure(false);
     }
   }
   // If specified, allow an escaping function parameter to override a
@@ -2483,6 +2498,16 @@ bool ArchetypeType::requiresClass() const {
   return false;
 }
 
+bool ArchetypeType::requiresNonClass() const {
+  if (auto layout = getLayoutConstraint())
+    if (layout->isTrivial())
+      return true;
+  for (ProtocolDecl *conformed : getConformsTo())
+    if (conformed->requiresNonClass())
+      return true;
+  return false;
+}
+
 namespace {
   /// Function object that orders archetypes by name.
   struct OrderArchetypeByName {
@@ -2639,6 +2664,10 @@ void ProtocolCompositionType::Profile(llvm::FoldingSetNodeID &ID,
 
 bool ProtocolType::requiresClass() {
   return getDecl()->requiresClass();
+}
+
+bool ProtocolType::requiresNonClass() {
+  return getDecl()->requiresNonClass();
 }
 
 bool ProtocolCompositionType::requiresClass() {

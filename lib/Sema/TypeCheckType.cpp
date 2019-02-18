@@ -1592,20 +1592,29 @@ static Type applyNonEscapingFromContext(DeclContext *DC,
   // Desugar here
   auto *funcTy = ty->castTo<FunctionType>();
   auto extInfo = funcTy->getExtInfo();
-  if (defaultNoEscape && !extInfo.isNoEscape()) {
-    extInfo = extInfo.withNoEscape();
+  bool updateExtInfo = false;
 
-    // We lost the sugar to flip the isNoEscape bit.
-    //
-    // FIXME: It would be better to add a new AttributedType sugared type,
-    // which would wrap the TypeAliasType or ParenType, and apply the
-    // isNoEscape bit when de-sugaring.
-    // <https://bugs.swift.org/browse/SR-2520>
-    return FunctionType::get(funcTy->getParams(), funcTy->getResult(), extInfo);
+  auto defaultPurity = DC->isPureContext();
+
+  if (defaultNoEscape) {
+    updateExtInfo |= extInfo.isNoEscape() != defaultNoEscape;
+    extInfo = extInfo.withNoEscape(defaultNoEscape);
+  }
+  if (!extInfo.isPure() && defaultPurity) {
+    updateExtInfo = true;
+    extInfo = extInfo.withPure(defaultPurity);
   }
 
-  // Note: original sugared type
-  return ty;
+  if (!updateExtInfo)
+    return ty;
+
+  // We lost the sugar to flip the isNoEscape bit.
+  //
+  // FIXME: It would be better to add a new AttributedType sugared type,
+  // which would wrap the TypeAliasType or ParenType, and apply the
+  // isNoEscape bit when de-sugaring.
+  // <https://bugs.swift.org/browse/SR-2520>
+  return FunctionType::get(funcTy->getParams(), funcTy->getResult(), extInfo);
 }
 
 /// Returns a valid type or ErrorType in case of an error.
@@ -2181,7 +2190,9 @@ Type TypeResolver::resolveAttributedType(TypeAttributes &attrs,
       }
 
       // Resolve the function type directly with these attributes.
-      FunctionType::ExtInfo extInfo(rep, attrs.has(TAK_noescape),
+      FunctionType::ExtInfo extInfo(rep,
+                                    /*pure*/false,
+                                    attrs.has(TAK_noescape),
                                     fnRepr->throws());
 
       ty = resolveASTFunctionType(fnRepr, options, extInfo);
@@ -2397,6 +2408,7 @@ bool TypeResolver::resolveASTFunctionTypeParams(
 Type TypeResolver::resolveASTFunctionType(FunctionTypeRepr *repr,
                                           TypeResolutionOptions parentOptions,
                                           FunctionType::ExtInfo extInfo) {
+  auto DC = repr->getDeclContext();
   TypeResolutionOptions options = None;
   options |= parentOptions.withoutContext().getFlags();
 
@@ -2410,6 +2422,7 @@ Type TypeResolver::resolveASTFunctionType(FunctionTypeRepr *repr,
   if (!outputTy || outputTy->hasError()) return outputTy;
 
   extInfo = extInfo.withThrows(repr->throws());
+  extInfo = extInfo.withPure(DC->isPureContext());
 
   // If this is a function type without parens around the parameter list,
   // diagnose this and produce a fixit to add them.

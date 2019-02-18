@@ -1279,6 +1279,14 @@ ConstraintSystem::TypeMatchResult
 ConstraintSystem::matchFunctionTypes(FunctionType *func1, FunctionType *func2,
                                      ConstraintKind kind, TypeMatchOptions flags,
                                      ConstraintLocatorBuilder locator) {
+  // A pure function can be a subtype of a impure function. In other words, a
+  // pure function must not access impure types, but an impure functions may.
+  if (func1->isPure() != func2->isPure()) {
+    // Cannot convert impure function to pure function
+    if (func2->isPure() || kind < ConstraintKind::Subtype)
+      return getTypeMatchFailure(locator);
+  }
+
   // A non-throwing function can be a subtype of a throwing function.
   if (func1->throws() != func2->throws()) {
     // Cannot drop 'throws'.

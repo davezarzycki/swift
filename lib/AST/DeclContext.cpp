@@ -220,6 +220,25 @@ bool DeclContext::isTypeContext() const {
   return false;
 }
 
+bool DeclContext::isPureContext() const {
+  auto DC = this;
+  do {
+    if (auto D = DC->getAsDecl()) {
+      if (auto AFD = dyn_cast<AbstractFunctionDecl>(D))
+        return AFD->hasPureBody();
+      if (D->getAttrs().hasAttribute<PureAttr>())
+        return true;
+      if (D->getAttrs().hasAttribute<ImpureAttr>())
+        return false;
+    } else if (auto E = DC->getAsExpr()) {
+      return cast<AbstractClosureExpr>(E)->isPure();
+    }
+  } while ((DC = DC->getParent()));
+
+  // The default is impure value semantics.
+  return false;
+}
+
 DeclContext *DeclContext::getInnermostTypeContext() {
   auto dc = this;
   do {

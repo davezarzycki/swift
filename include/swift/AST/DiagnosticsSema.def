@@ -821,6 +821,12 @@ NOTE(previous_precedence_group_decl,none,
 //------------------------------------------------------------------------------
 // MARK: Expression Type Checking Errors
 //------------------------------------------------------------------------------
+ERROR(pure_func_cannot_access_impure,none,
+      "pure functions cannot access impure semantics", ())
+ERROR(pure_func_cannot_access_mutable_global,none,
+      "pure functions cannot %select{mutate shared|access shared mutable}0 "
+      "variables", (bool))
+
 ERROR(types_not_convertible,none,
       "%1 is not %select{convertible to|a subtype of}0 %2",
       (bool, Type, Type))
@@ -1605,6 +1611,9 @@ NOTE(anyobject_requirement,none,
 ERROR(non_class_cannot_conform_to_class_protocol,none,
       "non-class type %0 cannot conform to class protocol %1",
       (Type, Type))
+ERROR(class_cannot_conform_to_pure_protocol,none,
+      "class type %0 cannot conform to pure protocol %1",
+      (Type, Type))
 ERROR(cf_class_cannot_conform_to_objc_protocol,none,
       "Core Foundation class %0 cannot conform to @objc protocol %1 because "
       "Core Foundation types are not classes in Objective-C",
@@ -1960,6 +1969,9 @@ ERROR(assoc_type_outside_of_protocol,none,
 ERROR(typealias_outside_of_protocol,none,
       "type alias %0 can only be used with a concrete type or "
       "generic parameter base", (Identifier))
+
+ERROR(class_vs_pure_protocol_confict,none,
+      "cannot inherit from both class-bound and pure protocols", ())
 
 ERROR(circular_protocol_def,none,
       "protocol %0 refines itself", (Identifier))
@@ -2484,6 +2496,17 @@ ERROR(override_final,none,
 
 ERROR(override_static,none,
       "cannot override %0", (DescriptiveDeclKind))
+
+ERROR(func_already_pure,none, "'@pure' is redunant in this context", ())
+ERROR(func_already_impure,none, "'@impure' is redunant in this context", ())
+ERROR(impure_body_requires_pure_func,none,
+      "'@impureBody' requires '@pure' function", ())
+ERROR(func_pure_versus_impure,none,
+      "functions cannot be both '@pure' and '@impure'", ())
+
+ERROR(weak_in_pure_context,none,
+      "'weak' is not valid in '@pure' contexts",
+      ())
 
 ERROR(member_cannot_be_final,none,
       "only classes and class members may be marked with 'final'",
@@ -3067,6 +3090,19 @@ ERROR(general_noescape_to_escaping,none,
 ERROR(converting_noescape_to_type,none,
       "converting non-escaping value to %0 may allow it to escape",
       (Type))
+
+ERROR(escapable_pure_func_cannot_close_over_mutable,none,
+      "escapable pure function cannot close over mutable variable %0",
+      (Identifier))
+ERROR(passing_impure_to_pure_closure,none,
+      "passing impure closure to function expecting a pure closure",
+      ())
+ERROR(assigning_impure_to_pure_closure,none,
+      "assigning impure closure to an pure closure",
+      ())
+ERROR(general_impure_to_pure_closure,none,
+      "using impure closure in a context expecting a pure closure",
+      ())
 
 ERROR(capture_across_type_decl,none,
       "%0 declaration cannot close over value %1 defined in outer scope",

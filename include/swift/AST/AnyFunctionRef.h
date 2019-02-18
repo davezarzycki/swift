@@ -125,6 +125,12 @@ public:
     return false;
   }
 
+  bool isPure() const {
+    if (auto AFD = TheFunction.dyn_cast<AbstractFunctionDecl *>())
+      return AFD->isPure();
+    return TheFunction.get<AbstractClosureExpr *>()->isPure();
+  }
+
   bool isObjC() const {
     if (auto afd = TheFunction.dyn_cast<AbstractFunctionDecl *>()) {
       return afd->isObjC();

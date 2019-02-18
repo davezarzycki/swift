@@ -1680,6 +1680,14 @@ checkIndividualConformance(NormalProtocolConformance *conformance,
     return conformance;
   }
 
+  // If the protocol requires a value type, classes are a non-starter.
+  if (Proto->requiresNonClass() && canT->getClassOrBoundGenericClass()) {
+    TC.diagnose(ComplainLoc,diag::class_cannot_conform_to_pure_protocol, T,
+                Proto->getDeclaredType());
+    conformance->setInvalid();
+    return conformance;
+  }
+
   if (Proto->isObjC()) {
     // Foreign classes cannot conform to objc protocols.
     if (auto clas = canT->getClassOrBoundGenericClass()) {

@@ -473,8 +473,8 @@ ParserResult<TypeRepr> Parser::parseType(Diag<> MessageID,
       }
     }
 
-    tyR = new (Context) FunctionTypeRepr(generics, argsTyR, throwsLoc, arrowLoc,
-                                         SecondHalf.get());
+    tyR = new (Context) FunctionTypeRepr(CurDeclContext, generics, argsTyR,
+                                         throwsLoc, arrowLoc, SecondHalf.get());
   } else if (generics) {
     // Only function types may be generic.
     auto brackets = generics->getSourceRange();

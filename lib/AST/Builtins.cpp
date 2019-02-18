@@ -178,7 +178,9 @@ getBuiltinFunction(Identifier Id, ArrayRef<Type> argTypes, Type ResType,
                              /*GenericParams=*/nullptr,
                              paramList,
                              TypeLoc::withoutLoc(ResType), DC);
-  FD->computeType(Info);
+  // FIXME: Add a "is pure" bit to Builtins.def
+  FD->getAttrs().add(new (Context) PureAttr(/*IsImplicit*/true));
+  FD->computeType(Info.withPure());
   FD->setValidationToChecked();
   FD->setImplicit();
   FD->setAccess(AccessLevel::Public);
@@ -226,6 +228,8 @@ getBuiltinGenericFunction(Identifier Id,
                                paramList,
                                TypeLoc::withoutLoc(ResType), DC);
 
+  // FIXME: Add a "is pure" bit to Builtins.def
+  func->getAttrs().add(new (Context) PureAttr(/*IsImplicit*/true));
   func->setGenericEnvironment(Env);
   func->computeType();
   func->setValidationToChecked();

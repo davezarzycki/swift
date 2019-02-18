@@ -1172,6 +1172,10 @@ public:
       assert(E->getParent()->isLocalContext() &&
              "closure expression was not in local context!");
 
+      if (E->getReturnedImpureBeforeType())
+        assert(!E->isPure() && "closure wrongly identified as impure before "
+            "type was computed");
+
       // Check that the discriminator is unique in its context.
       auto &discriminatorSet = getClosureDiscriminators(E);
       unsigned discriminator = E->getDiscriminator();

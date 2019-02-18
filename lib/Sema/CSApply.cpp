@@ -6385,8 +6385,17 @@ Expr *ExprRewriter::coerceToType(Expr *expr, Type toType,
     // If we have a ClosureExpr, then we can safely propagate the 'no escape'
     // bit to the closure without invalidating prior analysis.
     auto fromEI = fromFunc->getExtInfo();
+    bool updateEI = false;
     if (toEI.isNoEscape() && !fromEI.isNoEscape()) {
-      auto newFromFuncType = fromFunc->withExtInfo(fromEI.withNoEscape());
+      updateEI = true;
+      fromEI = fromEI.withNoEscape();
+    }
+    if (!toEI.isPure() && fromEI.isPure()) {
+      updateEI = true;
+      fromEI = fromEI.withPure(false);
+    }
+    if (updateEI) {
+      auto newFromFuncType = fromFunc->withExtInfo(fromEI);
       if (!isInDefaultArgumentContext &&
           applyTypeToClosureExpr(cs, expr, newFromFuncType)) {
         fromFunc = newFromFuncType->castTo<FunctionType>();

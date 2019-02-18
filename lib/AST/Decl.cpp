@@ -2211,9 +2211,11 @@ static AnyFunctionType::ExtInfo
 mapSignatureExtInfo(AnyFunctionType::ExtInfo info,
                     bool topLevelFunction) {
   if (topLevelFunction)
-    return AnyFunctionType::ExtInfo();
+    return AnyFunctionType::ExtInfo()
+      .withPure(info.isPure());
   return AnyFunctionType::ExtInfo()
       .withRepresentation(info.getRepresentation())
+      .withPure(info.isPure())
       .withThrows(info.throws());
 }
 
@@ -3941,13 +3943,15 @@ bool EnumDecl::isEffectivelyExhaustive(ModuleDecl *M,
 
 ProtocolDecl::ProtocolDecl(DeclContext *DC, SourceLoc ProtocolLoc,
                            SourceLoc NameLoc, Identifier Name,
+                           SourceLoc NotClassLoc,
                            MutableArrayRef<TypeLoc> Inherited,
                            TrailingWhereClause *TrailingWhere)
     : NominalTypeDecl(DeclKind::Protocol, DC, Name, NameLoc, Inherited,
                       nullptr),
-      ProtocolLoc(ProtocolLoc) {
+      ProtocolLoc(ProtocolLoc), NotClassLoc(NotClassLoc) {
   Bits.ProtocolDecl.RequiresClassValid = false;
   Bits.ProtocolDecl.RequiresClass = false;
+  Bits.ProtocolDecl.RequiresNonClass = false;
   Bits.ProtocolDecl.ExistentialConformsToSelfValid = false;
   Bits.ProtocolDecl.ExistentialConformsToSelf = false;
   Bits.ProtocolDecl.Circularity
@@ -4073,14 +4077,23 @@ bool ProtocolDecl::inheritsFrom(const ProtocolDecl *super) const {
   });
 }
 
-bool ProtocolDecl::requiresClassSlow() {
-  // Set this first to catch (invalid) circular inheritance.
+bool ProtocolDecl::requiresClassNonClassSlow(bool wantsClass) {
+  // NOTE: The type checker will ensure that requiresClass and requiresNotClass
+  // are mutually exclusive.
+
+  // Set this first to ignore circular inheritance.
   Bits.ProtocolDecl.RequiresClassValid = true;
   Bits.ProtocolDecl.RequiresClass = false;
 
-  // Quick check: @objc protocols require a class.
-  if (isObjC())
-    return Bits.ProtocolDecl.RequiresClass = true;
+  // These shouldn't be set yet.
+  assert(!Bits.ProtocolDecl.RequiresClass);
+  assert(!Bits.ProtocolDecl.RequiresNonClass);
+
+  // @objc protocols require a class.
+  Bits.ProtocolDecl.RequiresClass |= isObjC();
+
+  // Quick check
+  Bits.ProtocolDecl.RequiresNonClass |= NotClassLoc.isValid();
 
   // Determine the set of nominal types that this protocol inherits.
   bool anyObject = false;
@@ -4088,26 +4101,24 @@ bool ProtocolDecl::requiresClassSlow() {
     getDirectlyInheritedNominalTypeDecls(this, anyObject);
 
   // Quick check: do we inherit AnyObject?
-  if (anyObject) {
-    Bits.ProtocolDecl.RequiresClass = true;
-    return true;
-  }
+  Bits.ProtocolDecl.RequiresClass |= anyObject;
 
   // Look through all of the inherited nominals for a superclass or a
   // class-bound protocol.
   for (const auto found : allInheritedNominals) {
     // Superclass bound.
-    if (isa<ClassDecl>(found.second))
-      return Bits.ProtocolDecl.RequiresClass = true;
+    Bits.ProtocolDecl.RequiresClass |= isa<ClassDecl>(found.second);
 
     // A protocol that might be class-constrained;
     if (auto proto = dyn_cast<ProtocolDecl>(found.second)) {
-      if (proto->requiresClass())
-        return Bits.ProtocolDecl.RequiresClass = true;
+      Bits.ProtocolDecl.RequiresClass |= proto->requiresClass();
+      Bits.ProtocolDecl.RequiresNonClass |= proto->requiresNonClass();
     }
   }
 
-  return Bits.ProtocolDecl.RequiresClass;
+  if (wantsClass)
+    return Bits.ProtocolDecl.RequiresClass;
+  return Bits.ProtocolDecl.RequiresNonClass;
 }
 
 bool ProtocolDecl::requiresSelfConformanceWitnessTable() const {
@@ -5931,6 +5942,7 @@ void AbstractFunctionDecl::computeType(AnyFunctionType::ExtInfo info) {
 
     // 'throws' only applies to the innermost function.
     info = info.withThrows(hasThrows());
+    info = info.withPure(isPure());
     // Defer bodies must not escape.
     if (auto fd = dyn_cast<FuncDecl>(this))
       info = info.withNoEscape(fd->isDeferBody());
@@ -5946,10 +5958,11 @@ void AbstractFunctionDecl::computeType(AnyFunctionType::ExtInfo info) {
   if (hasSelf) {
     // Substitute in our own 'self' parameter.
     auto selfParam = computeSelfParam(this);
+    auto selfInfo = AnyFunctionType::ExtInfo().withPure(isPure());
     if (sig)
-      funcTy = GenericFunctionType::get(sig, {selfParam}, funcTy);
+      funcTy = GenericFunctionType::get(sig, {selfParam}, funcTy, selfInfo);
     else
-      funcTy = FunctionType::get({selfParam}, funcTy);
+      funcTy = FunctionType::get({selfParam}, funcTy, selfInfo);
   }
 
   // Record the interface type.
@@ -6292,18 +6305,19 @@ void EnumElementDecl::computeType() {
   auto resultTy = ED->getDeclaredInterfaceType();
 
   AnyFunctionType::Param selfTy(MetatypeType::get(resultTy, ctx));
+  auto EI = AnyFunctionType::ExtInfo().withPure(ED->isPureContext());
 
   if (auto *PL = getParameterList()) {
     SmallVector<AnyFunctionType::Param, 4> argTy;
     PL->getParams(argTy);
 
-    resultTy = FunctionType::get(argTy, resultTy);
+    resultTy = FunctionType::get(argTy, resultTy, EI);
   }
 
   if (auto *genericSig = ED->getGenericSignature())
-    resultTy = GenericFunctionType::get(genericSig, {selfTy}, resultTy);
+    resultTy = GenericFunctionType::get(genericSig, {selfTy}, resultTy, EI);
   else
-    resultTy = FunctionType::get({selfTy}, resultTy);
+    resultTy = FunctionType::get({selfTy}, resultTy, EI);
 
   // Record the interface type.
   setInterfaceType(resultTy);

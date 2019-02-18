@@ -2403,6 +2403,13 @@ namespace {
       if (closureCanThrow(expr))
         extInfo = extInfo.withThrows();
 
+      bool pure = expr->getParent()->isPureContext();
+      if (contextualType) {
+        if (auto cft = contextualType->getAs<AnyFunctionType>())
+          pure = cft->isPure();
+      }
+      extInfo = extInfo.withPure(pure);
+
       return FunctionType::get(paramTy, resultTy, extInfo);
     }
 
@@ -2472,6 +2479,7 @@ namespace {
       FunctionType::ExtInfo extInfo;
       if (isa<ClosureExpr>(fnExpr->getSemanticsProvidingExpr()))
         extInfo = extInfo.withNoEscape();
+      extInfo = extInfo.withPure(CurDC->isPureContext());
 
       // FIXME: Redesign the AST so that an ApplyExpr directly stores a list of
       // arguments together with their inout-ness, instead of a single

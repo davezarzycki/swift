@@ -227,6 +227,12 @@ public:
                          "@escaping ");
       }
     }
+
+    if (AFR.isPure() && !AFR.isKnownNoEscape() &&
+        VD->isSettable(AFR.getAsDeclContext())) {
+      TC.diagnose(Loc, diag::escapable_pure_func_cannot_close_over_mutable,
+                  VD->getBaseName().getIdentifier());
+    }
   }
 
   bool shouldWalkIntoLazyInitializers() override {

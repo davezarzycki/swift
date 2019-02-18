@@ -164,6 +164,7 @@ TypeRepr *CloneVisitor::visitCompoundIdentTypeRepr(CompoundIdentTypeRepr *T) {
 
 TypeRepr *CloneVisitor::visitFunctionTypeRepr(FunctionTypeRepr *T) {
   return new (Ctx) FunctionTypeRepr(
+                              T->getDeclContext(),
                               /*FIXME: Clone?*/T->getGenericParams(),
                               cast<TupleTypeRepr>(visit(T->getArgsTypeRepr())),
                               T->getThrowsLoc(),

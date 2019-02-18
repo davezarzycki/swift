@@ -277,7 +277,7 @@ class alignas(1 << TypeAlignInBits) TypeBase {
   }
 
 protected:
-  enum { NumAFTExtInfoBits = 6 };
+  enum { NumAFTExtInfoBits = 7 };
   enum { NumSILExtInfoBits = 6 };
   union { uint64_t OpaqueBits;
 
@@ -2833,7 +2833,8 @@ public:
       RepresentationMask     = 0xF << 0,
       NoEscapeMask           = 1 << 4,
       ThrowsMask             = 1 << 5,
-      NumMaskBits            = 6
+      PureMask               = 1 << 6,
+      NumMaskBits            = 7
     };
 
     unsigned Bits; // Naturally sized for speed.
@@ -2855,12 +2856,15 @@ public:
 
     // Constructor with no defaults.
     ExtInfo(Representation Rep,
+            bool IsPure,
             bool IsNoEscape,
             bool Throws)
       : ExtInfo(Rep, Throws) {
       Bits |= (IsNoEscape ? NoEscapeMask : 0);
+      Bits |= (IsPure ? PureMask : 0);
     }
 
+    bool isPure() const { return Bits & PureMask; }
     bool isNoEscape() const { return Bits & NoEscapeMask; }
     bool throws() const { return Bits & ThrowsMask; }
     Representation getRepresentation() const {
@@ -2911,6 +2915,13 @@ public:
     ExtInfo withRepresentation(Representation Rep) const {
       return ExtInfo((Bits & ~RepresentationMask)
                      | (unsigned)Rep);
+    }
+    LLVM_NODISCARD
+    ExtInfo withPure(bool Pure = true) const {
+      if (Pure)
+        return ExtInfo(Bits | PureMask);
+      else
+        return ExtInfo(Bits & ~PureMask);
     }
     LLVM_NODISCARD
     ExtInfo withNoEscape(bool NoEscape = true) const {
@@ -3018,6 +3029,10 @@ public:
 
   bool throws() const {
     return getExtInfo().throws();
+  }
+
+  bool isPure() const {
+    return getExtInfo().isPure();
   }
 
   /// Returns a new function type exactly like this one but with the ExtInfo
@@ -4342,6 +4357,9 @@ public:
   /// True if only classes may conform to the protocol.
   bool requiresClass();
 
+  /// True if only value types may conform to the protocol.
+  bool requiresNonClass();
+
   // Implement isa/cast/dyncast/etc.
   static bool classof(const TypeBase *T) {
     return T->getKind() == TypeKind::Protocol;
@@ -4425,6 +4443,10 @@ public:
   /// be a class, either via a directly-stated superclass constraint or
   /// one of its member protocols being class-constrained.
   bool requiresClass();
+
+  /// True if the composition requires the concrete conforming type to
+  /// be a value type due to a member protocol being value-type-constrained.
+  bool requiresNonClass();
 
   /// True if the class requirement is stated directly via '& AnyObject'.
   bool hasExplicitAnyObject() const {
@@ -4617,6 +4639,11 @@ public:
   /// This is true if the type conforms to one or more class protocols or has
   /// a superclass constraint.
   bool requiresClass() const;
+
+  /// requiresNonClass - True if the type can only be substituted with value
+  /// types. This is true if the type conforms to one or more value-type
+  /// protocols.
+  bool requiresNonClass() const;
 
   /// Retrieve the superclass of this type, if such a requirement exists.
   Type getSuperclass() const {

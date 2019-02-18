@@ -948,7 +948,8 @@ public:
                                            DeclAttributes &Attributes);
   ParserStatus parseInheritance(SmallVectorImpl<TypeLoc> &Inherited,
                                 bool allowClassRequirement,
-                                bool allowAnyObject);
+                                bool allowAnyObject,
+                                SourceLoc *notClassLoc);
   ParserStatus parseDeclItem(bool &PreviousHadSemi,
                              Parser::ParseDeclOptions Options,
                              llvm::function_ref<void(Decl*)> handler);

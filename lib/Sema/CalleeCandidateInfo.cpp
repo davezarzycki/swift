@@ -43,6 +43,9 @@ static bool isSubstitutableFor(Type type, ArchetypeType *archetype,
   if (archetype->requiresClass() && !type->satisfiesClassConstraint())
     return false;
 
+  if (archetype->requiresNonClass() && type->mayHaveSuperclass())
+    return false;
+
   if (auto superclass = archetype->getSuperclass()) {
     if (!superclass->isExactSuperclassOf(type))
       return false;

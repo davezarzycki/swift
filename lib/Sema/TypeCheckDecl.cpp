@@ -221,6 +221,7 @@ static void checkInheritanceClause(
   ExtensionDecl *ext = nullptr;
   TypeDecl *typeDecl = nullptr;
   Decl *decl;
+  bool protoSemaConflict = false;
   if ((ext = declUnion.dyn_cast<ExtensionDecl *>())) {
     decl = ext;
     DC = ext;
@@ -244,6 +245,11 @@ static void checkInheritanceClause(
     if (auto nominal = dyn_cast<NominalTypeDecl>(typeDecl)) {
       DC = nominal;
       options |= TypeResolutionFlags::AllowUnavailableProtocol;
+      if (auto proto = dyn_cast<ProtocolDecl>(nominal)) {
+        protoSemaConflict = proto->requiresClass() && proto->requiresNonClass();
+        if (protoSemaConflict)
+           decl->diagnose(diag::class_vs_pure_protocol_confict);
+      }
     } else {
       DC = typeDecl->getDeclContext();
     }

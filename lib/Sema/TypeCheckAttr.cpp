@@ -172,6 +172,35 @@ public:
     TC.checkReferenceOwnershipAttr(cast<VarDecl>(D), attr);
   }
 
+  void visitPureAttr(PureAttr *attr) {
+    if (isa<NominalTypeDecl>(D) || isa<ExtensionDecl>(D))
+      return;
+    if (!D->getDeclContext()->isPureContext())
+      return;
+    TC.diagnose(attr->getLocation(), diag::func_already_pure)
+      .fixItRemove(attr->getRange());
+    if (D->getAttrs().hasAttribute<ImpureAttr>())
+      TC.diagnose(attr->getLocation(), diag::func_pure_versus_impure)
+        .fixItRemove(attr->getRange());
+  }
+
+  void visitImpureAttr(ImpureAttr *attr) {
+    if (D->getDeclContext()->isPureContext())
+      return;
+    TC.diagnose(attr->getLocation(), diag::func_already_impure)
+      .fixItRemove(attr->getRange());
+    if (D->getAttrs().hasAttribute<PureAttr>())
+      TC.diagnose(attr->getLocation(), diag::func_pure_versus_impure)
+        .fixItRemove(attr->getRange());
+  }
+
+  void visitImpureBodyAttr(ImpureBodyAttr *attr) {
+    auto AFD = cast<AbstractFunctionDecl>(D);
+    if (AFD->isPure())
+      return;
+    TC.diagnose(attr->getLocation(), diag::impure_body_requires_pure_func);
+  }
+
   void visitFinalAttr(FinalAttr *attr) {
     // Reject combining 'final' with 'open'.
     if (auto accessAttr = D->getAttrs().getAttribute<AccessControlAttr>()) {
@@ -788,6 +817,9 @@ public:
     IGNORED_ATTR(Transparent)
     IGNORED_ATTR(WarnUnqualifiedAccess)
     IGNORED_ATTR(WeakLinked)
+    IGNORED_ATTR(Pure)
+    IGNORED_ATTR(Impure)
+    IGNORED_ATTR(ImpureBody)
 #undef IGNORED_ATTR
 
   void visitAvailableAttr(AvailableAttr *attr);
@@ -2484,6 +2516,12 @@ void TypeChecker::checkReferenceOwnershipAttr(VarDecl *var,
     if (var->isLet()) {
       diagnose(var->getStartLoc(), diag::invalid_ownership_is_let,
                ownershipKind);
+      attr->setInvalid();
+    }
+
+    if (var->getDeclContext()->isPureContext()) {
+      Diags.diagnose(var->getStartLoc(), diag::weak_in_pure_context)
+        .fixItReplace(attr->getRange(), "unowned");
       attr->setInvalid();
     }
 

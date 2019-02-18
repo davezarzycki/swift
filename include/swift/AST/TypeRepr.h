@@ -476,15 +476,20 @@ class FunctionTypeRepr : public TypeRepr {
   SourceLoc ArrowLoc;
   SourceLoc ThrowsLoc;
 
+  /// The declaration context from which the bound declaration was
+  /// found. only valid if IdOrDecl is a TypeDecl.
+  DeclContext *DC;
+
 public:
-  FunctionTypeRepr(GenericParamList *genericParams, TupleTypeRepr *argsTy,
-                   SourceLoc throwsLoc, SourceLoc arrowLoc, TypeRepr *retTy)
+  FunctionTypeRepr(DeclContext *DC, GenericParamList *genericParams,
+                   TupleTypeRepr *argsTy, SourceLoc throwsLoc,
+                   SourceLoc arrowLoc, TypeRepr *retTy)
     : TypeRepr(TypeReprKind::Function),
       GenericParams(genericParams),
       GenericEnv(nullptr),
       ArgsTy(argsTy), RetTy(retTy),
-      ArrowLoc(arrowLoc), ThrowsLoc(throwsLoc) {
-  }
+      ArrowLoc(arrowLoc), ThrowsLoc(throwsLoc),
+      DC(DC) { }
 
   GenericParamList *getGenericParams() const { return GenericParams; }
   GenericEnvironment *getGenericEnvironment() const { return GenericEnv; }
@@ -493,6 +498,8 @@ public:
     assert(GenericEnv == nullptr);
     GenericEnv = genericEnv;
   }
+
+  DeclContext *getDeclContext() const { return DC; }
 
   TupleTypeRepr *getArgsTypeRepr() const { return ArgsTy; }
   TypeRepr *getResultTypeRepr() const { return RetTy; }

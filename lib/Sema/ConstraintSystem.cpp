@@ -632,7 +632,9 @@ Type ConstraintSystem::openFunctionType(
     // Build the resulting (non-generic) function type.
     funcType = FunctionType::get(
         openedParams, resultTy,
-        FunctionType::ExtInfo().withThrows(genericFn->throws()));
+        FunctionType::ExtInfo()
+          .withThrows(genericFn->throws())
+          .withPure(genericFn->isPure()));
   }
 
   return funcType->removeArgumentLabels(numArgumentLabelsToRemove);
@@ -1294,10 +1296,12 @@ ConstraintSystem::getTypeOfMemberReference(
 
     // If the storage is generic, add a generic signature.
     FunctionType::Param selfParam(selfTy, Identifier(), selfFlags);
+    auto EI = AnyFunctionType::ExtInfo();
+    EI = EI.withPure(outerDC->isPureContext());
     if (auto *sig = innerDC->getGenericSignatureOfContext()) {
-      funcType = GenericFunctionType::get(sig, {selfParam}, refType);
+      funcType = GenericFunctionType::get(sig, {selfParam}, refType, EI);
     } else {
-      funcType = FunctionType::get({selfParam}, refType);
+      funcType = FunctionType::get({selfParam}, refType, EI);
     }
   }
 
@@ -1575,8 +1579,10 @@ resolveOverloadForDeclWithSpecialTypeCheckingSemantics(ConstraintSystem &CS,
     FunctionType::Param arg(escapeClosure);
     auto bodyClosure = FunctionType::get(arg, result,
         FunctionType::ExtInfo(FunctionType::Representation::Swift,
+                              /*pure*/ false,
                               /*noescape*/ true,
-                              /*throws*/ true));
+                              /*throws*/ true
+                              ));
     FunctionType::Param args[] = {
       FunctionType::Param(noescapeClosure),
       FunctionType::Param(bodyClosure, CS.getASTContext().getIdentifier("do")),
@@ -1584,6 +1590,7 @@ resolveOverloadForDeclWithSpecialTypeCheckingSemantics(ConstraintSystem &CS,
     
     refType = FunctionType::get(args, result,
       FunctionType::ExtInfo(FunctionType::Representation::Swift,
+                            /*pure*/ false,
                             /*noescape*/ false,
                             /*throws*/ true));
     openedFullType = refType;
@@ -1604,6 +1611,7 @@ resolveOverloadForDeclWithSpecialTypeCheckingSemantics(ConstraintSystem &CS,
     FunctionType::Param bodyArgs[] = {FunctionType::Param(openedTy)};
     auto bodyClosure = FunctionType::get(bodyArgs, result,
         FunctionType::ExtInfo(FunctionType::Representation::Swift,
+                              /*pure*/ false,
                               /*noescape*/ true,
                               /*throws*/ true));
     FunctionType::Param args[] = {
@@ -1612,6 +1620,7 @@ resolveOverloadForDeclWithSpecialTypeCheckingSemantics(ConstraintSystem &CS,
     };
     refType = FunctionType::get(args, result,
       FunctionType::ExtInfo(FunctionType::Representation::Swift,
+                            /*pure*/ false,
                             /*noescape*/ false,
                             /*throws*/ true));
     openedFullType = refType;
@@ -1937,13 +1946,18 @@ void ConstraintSystem::resolveOverload(ConstraintLocator *locator,
     auto decl = choice.getDecl();
     // If we're binding to an init member, the 'throws' need to line up between
     // the bound and reference types.
-    if (auto CD = dyn_cast<ConstructorDecl>(decl)) {
-      auto boundFunctionType = boundType->getAs<AnyFunctionType>();
-        
-      if (boundFunctionType &&
-          CD->hasThrows() != boundFunctionType->throws()) {
-        boundType = boundFunctionType->withExtInfo(
-            boundFunctionType->getExtInfo().withThrows());
+    if (auto CD = dyn_cast<ConstructorDecl>(choice.getDecl())) {
+      if (auto boundFunctionType = boundType->getAs<AnyFunctionType>()) {
+        bool updateExtInfo = false;
+        auto pure = CD->isPure();
+        updateExtInfo |= CD->hasThrows();
+        updateExtInfo |= pure;
+        if (updateExtInfo) {
+          auto extInfo = boundFunctionType->getExtInfo();
+          extInfo = extInfo.withThrows(CD->hasThrows());
+          extInfo = extInfo.withPure(pure);
+          boundType = boundFunctionType->withExtInfo(extInfo);
+        }
       }
     }
 

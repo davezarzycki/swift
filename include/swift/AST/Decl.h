@@ -503,12 +503,15 @@ protected:
     HasLazyConformances : 1
   );
 
-  SWIFT_INLINE_BITFIELD_FULL(ProtocolDecl, NominalTypeDecl, 1+1+1+1+1+1+1+2+1+8+16,
+  SWIFT_INLINE_BITFIELD_FULL(ProtocolDecl, NominalTypeDecl, 1+1+1+1+1+1+1+1+2+1+8+16,
     /// Whether the \c RequiresClass bit is valid.
     RequiresClassValid : 1,
 
     /// Whether this is a class-bounded protocol.
     RequiresClass : 1,
+
+    /// Whether this is a value-type-bounded protocol.
+    RequiresNonClass : 1,
 
     /// Whether the \c ExistentialConformsToSelf bit is valid.
     ExistentialConformsToSelfValid : 1,
@@ -3939,11 +3942,13 @@ class ProtocolDecl final : public NominalTypeDecl {
     llvm::PointerIntPair<Type, 1, bool> SuperclassType;
   } LazySemanticInfo;
 
+  SourceLoc NotClassLoc;
+
   /// The generic signature representing exactly the new requirements introduced
   /// by this protocol.
   const Requirement *RequirementSignature = nullptr;
 
-  bool requiresClassSlow();
+  bool requiresClassNonClassSlow(bool wantsClass);
 
   bool existentialConformsToSelfSlow();
 
@@ -3957,7 +3962,8 @@ class ProtocolDecl final : public NominalTypeDecl {
 
 public:
   ProtocolDecl(DeclContext *DC, SourceLoc ProtocolLoc, SourceLoc NameLoc,
-               Identifier Name, MutableArrayRef<TypeLoc> Inherited,
+               Identifier Name, SourceLoc NotClassLoc,
+               MutableArrayRef<TypeLoc> Inherited,
                TrailingWhereClause *TrailingWhere);
 
   using Decl::getASTContext;
@@ -4020,7 +4026,8 @@ public:
     if (Bits.ProtocolDecl.RequiresClassValid)
       return Bits.ProtocolDecl.RequiresClass;
 
-    return const_cast<ProtocolDecl *>(this)->requiresClassSlow();
+    return const_cast<ProtocolDecl *>(this)->requiresClassNonClassSlow(
+                                                            /*wantsClass*/true);
   }
 
   /// Specify that this protocol is class-bounded, e.g., because it was
@@ -4028,6 +4035,24 @@ public:
   void setRequiresClass(bool requiresClass = true) {
     Bits.ProtocolDecl.RequiresClassValid = true;
     Bits.ProtocolDecl.RequiresClass = requiresClass;
+    assert(!requiresClass || !Bits.ProtocolDecl.RequiresNonClass);
+  }
+
+  /// True if this protocol can only be conformed to by value types.
+  bool requiresNonClass() const {
+    if (Bits.ProtocolDecl.RequiresClassValid)
+      return Bits.ProtocolDecl.RequiresNonClass;
+
+    return const_cast<ProtocolDecl *>(this)->requiresClassNonClassSlow(
+                                                           /*wantsClass*/false);
+  }
+
+  /// Specify that this protocol is value-type-bounded, e.g., because it was
+  /// annotated with the '!class' keyword.
+  void setRequiresNonClass(bool requiresNonClass = true) {
+    Bits.ProtocolDecl.RequiresClassValid = true;
+    Bits.ProtocolDecl.RequiresNonClass = requiresNonClass;
+    assert(!requiresNonClass || !Bits.ProtocolDecl.RequiresClass);
   }
 
   /// Determine whether an existential conforming to this protocol can be
@@ -5340,6 +5365,22 @@ public:
 
   /// Returns true if the function body throws.
   bool hasThrows() const { return Bits.AbstractFunctionDecl.Throws; }
+
+  /// Returns true if the function type has "pure" value semantics.
+  bool isPure() const {
+    if (getAttrs().hasAttribute<PureAttr>())
+      return true;
+    if (getAttrs().hasAttribute<ImpureAttr>())
+      return false;
+    return getDeclContext()->isPureContext();
+  }
+
+  /// Returns true if the function body is "pure" or not.
+  bool hasPureBody() const {
+    if (getAttrs().hasAttribute<ImpureBodyAttr>())
+      return false;
+    return isPure();
+  }
 
   // FIXME: Hack that provides names with keyword arguments for accessors.
   DeclName getEffectiveFullName() const;
